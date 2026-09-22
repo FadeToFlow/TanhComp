@@ -1,0 +1,42 @@
+name: Build Windows
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Cache JUCE FetchContent
+        uses: actions/cache@v4
+        with:
+          path: build/_deps
+          key: juce-${{ hashFiles('CMakeLists.txt') }}
+
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_MSVC_RUNTIME_LIBRARY="MultiThreaded"
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Upload artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: TanhComp-Windows
+          path: build/TanhComp_artefacts/Release
+          if-no-files-found: error
