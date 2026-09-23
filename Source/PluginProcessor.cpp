@@ -187,6 +187,9 @@ void TanhCompAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     float osMultiplier = static_cast<float>(1 << osIndex); 
     float overSampleRate = static_cast<float>(getSampleRate()) * osMultiplier;
 
+    size_t modeIndex = static_cast<size_t> (apvts.getRawParameterValue ("MODE")->load());
+    bool isSymm = !modeIndex;
+
     float driveDb = apvts.getRawParameterValue("GAIN")->load();
     float driveGain = juce::Decibels::decibelsToGain(driveDb);
 
@@ -243,26 +246,47 @@ void TanhCompAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
         for (size_t i = 0; i < blockToProcess.getNumSamples(); ++i)
         {
             float x = data[i] * driveGain;
-            
+
             float xT = x > 0 ? x : 0;
             float xB = x < 0 ? x : 0;
+            
+            if (isSymm)
+            {
+                envelopesT[ch] = lpf1[ch].processSample(xT);
+                envelopesB[ch] = lpf2[ch].processSample(xB);               
 
-            envelopesT[ch] = lpf1[ch].processSample(xT);
-            envelopesB[ch] = lpf2[ch].processSample(xB);               
+                xT = hpf1[ch].processSample(xT);
+                xB = hpf2[ch].processSample(xB);
 
-            xT = hpf1[ch].processSample(xT);
-            xB = hpf2[ch].processSample(xB);
+                xT += envelopesT[ch]*juce::Decibels::decibelsToGain(pressure-10);
+                xB += envelopesB[ch]*juce::Decibels::decibelsToGain(pressure-10);
 
-            xT += envelopesT[ch]*juce::Decibels::decibelsToGain(pressure-10);
-            xB += envelopesB[ch]*juce::Decibels::decibelsToGain(pressure-10);
+                xT += bias;
+                xB -= bias;
 
-            xT += bias;
-            xB -= bias;
+                xT = tanh(xT);
+                xB = tanh(xB);
 
-            xT = tanh(xT);
-            xB = tanh(xB);
+                data[i] = (xB + xT) * juce::Decibels::decibelsToGain(makeup);
+            }
+            else
+            {
+                float rectifierX = xT - xB;
+                envelopesT[ch] = lpf1[ch].processSample(rectifierX);
+                envelopesB[ch] = hpf1[ch].processSample(envelopesT[ch]);
 
-            data[i] = (xB + xT) * juce::Decibels::decibelsToGain(makeup);
+                x += envelopesT[ch]*juce::Decibels::decibelsToGain(pressure-10);
+                x += envelopesB[ch];
+
+                x += bias;
+
+                x = tanh(x);
+
+                x = dcBlock[ch].processSample(x);
+
+                data[i] = x * juce::Decibels::decibelsToGain(makeup);
+            }
+
         }       
     }
 
@@ -316,6 +340,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout TanhCompAudioProcessor::crea
     juce::StringArray osChoices { "1x (Off)", "2x", "4x", "8x", "16x" };
     params.push_back(std::make_unique<juce::AudioParameterChoice>("OS", "Oversampling", osChoices, 0));
 
+    juce::StringArray modeChoices { "Symmetrical", "Asymmetrical"};
+    params.push_back(std::make_unique<juce::AudioParameterChoice>("MODE", "Mode", modeChoices, 0));    
+
     params.push_back(std::make_unique<juce::AudioParameterFloat>("GAIN", "Gain (dB)", -10.0f, 30.0f, 16.0f));
 
     params.push_back(std::make_unique<juce::AudioParameterFloat>("BIAS", "Bias", 0.0f, 3.0f, 0.5f));
@@ -326,6 +353,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout TanhCompAudioProcessor::crea
     params.push_back(std::make_unique<juce::AudioParameterFloat>("SWSPEED", "Swing Speed", 0.1f, 10.0f, 3.0f));
     
     params.push_back(std::make_unique<juce::AudioParameterFloat>("MKUP", "Makeup (dB)", 0.0f, 40.0f, 6.0f));
+
 
     return { params.begin(), params.end() };
 }

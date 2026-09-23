@@ -67,8 +67,9 @@ private:
     EqFilter hpf2  { EqFilter::Type::HighPass, 1.0f, 0.0f, 1.0f / sqrtf(2.0f)};
     EqFilter lpf1  { EqFilter::Type::LowPass, 1.0f, 0.0f, 1.0f / sqrtf(2.0f)};
     EqFilter lpf2  { EqFilter::Type::LowPass, 1.0f, 0.0f, 1.0f / sqrtf(2.0f)};
+    EqFilter dcBlock  { EqFilter::Type::HighPass, 20.0f, 0.0f, 1.0f / sqrtf(2.0f)};
 
-    std::vector<EqFilter*> allFilters{&hpf1, &hpf2, &lpf1, &lpf2};
+    std::vector<EqFilter*> allFilters{&hpf1, &hpf2, &lpf1, &lpf2, &dcBlock};
 
     std::vector<float> envelopesT;
     std::vector<float> envelopesB;
