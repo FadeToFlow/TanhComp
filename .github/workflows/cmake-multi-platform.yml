@@ -38,5 +38,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: TanhComp-Windows
-          path: build/TanhComp_artefacts/Release
+          path: |
+            build/TanhComp_artefacts/Release
+            !build/TanhComp_artefacts/Release/**/*.lib
+            !build/TanhComp_artefacts/Release/**/*.exp
           if-no-files-found: error
